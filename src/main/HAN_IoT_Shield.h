@@ -69,9 +69,6 @@
 
 #include <Arduino.h> 
 
-#include <OneWire.h>            // one wire library for Dallas one wire sensor
-#include <DallasTemperature.h>  // Dallas one wire sensor library
-
 // Defines for LEDs
 #define PIN_LED_1_RED    3     ///< Led 1 is red and connected to arduino pin 3
 #define PIN_LED_2_RED    4     ///< Led 2 is red and connected to arduino pin 4
@@ -84,43 +81,10 @@
 #define RELEASED HIGH          ///< represent activity of pushbutton, Released or not pressed is HIGH or '1'
 #define PRESSED  LOW           ///< represent activity of pushbutton, Pressed is LOW or '0'
 
-// defines for potentiometers.
-#define PIN_POT_RED      A0    ///< Potmeter 1 with red knob is connected to Arduino pin A0
-#define PIN_POT_WHITE    A1    ///< Potmeter 1 with white knob is connected to Arduino pin A1
-
-// defines for Dallase one wire sensor
-#define PIN_DALLAS       2     ///< Dallas DS18S20 one-wire temperature sensor is connected to Arduino pin 2
-
-class iotShieldPotmeter
-{
-private:
-uint8_t _pin;                 ///< Hardware pin to which the potentiometer is connected.
-  int16_t _aRange;            ///< Minimum value that the potentiiometer will give
-  int16_t _bRange;            ///< Maximum valie that the potentiometer will give.
-
-public:
-  /// \brief constructor
-  /// \pre requires a analog input pin to which the potentiometer is connected
-  /// The potentiometer shall apply 0 to VCC to the anlog input.
-  /// \param hardwarePin Arduino pin to which the potentiometeris connected
-  /// \param minimumValue of the range within the potentiometer will generate values. Default is 0
-  /// \param maximumValue of the range within the potentiometer will generate values. Default is 1023.
-  iotShieldPotmeter(uint8_t hardwarePin, int minimumValue = 0, int maximumValue = 1023);
-
-  /// \brief Default destructor
-  ~iotShieldPotmeter();
-
-  /// \brief read value from potentiometer
-  /// This function will transpose raw analog value form 0 to 1023 in to the range
-  /// specified by the minimum and maximumvalue given at creation of the object.
-  /// \return float transposed value from potentiometer in to the sepcified range.
-  float getValue(void);
-};
-
 typedef enum { BUTTON_PRESSED,   ///< Button is pressed
                BUTTON_RELEASED   ///< Button is released
              } buttonState_t;
-                 
+
 class iotShieldButton
 {
 private:
@@ -166,27 +130,6 @@ public:
   /// \brief set state of LED
   /// \param state set LED state using ledState_t enum.
   void setState(ledState_t state);
-
-};
-
-class iotShieldTempSensor
-{
-private:
-  float   _temperature;         ///< Local value to hold temperature read form Dallas sensor
-  OneWire _oneWireInterface;    ///< Object of onewire interface
-  DallasTemperature _sensors;   ///< Object of one wire sensors on one wire bus
-  
-public:
-  /// \pre requires a digital input pin to which the LED is connected
-  /// \param hardwarePin Arduino pin to which the LED connected
-  iotShieldTempSensor(uint8_t hardwarePin = PIN_DALLAS);
-
-  /// \brief Default destructor
-  ~iotShieldTempSensor();
-
-  /// \brief set state of LED
-  /// \return state set LED state using ledState_t enum.
-  float getTemperatureCelsius();
 
 };
 

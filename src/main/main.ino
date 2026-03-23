@@ -1,6 +1,7 @@
 #include <TheThingsNetwork.h>
 #include <CayenneLPP.h>
 #include "HAN_IoT_Shield.h"
+#include "SensingModule.h"
 
 // TTN Credentials
 const char *appEui = "1234123412341234";
@@ -16,6 +17,7 @@ CayenneLPP lpp(51);
 // IoT Shield
 iotShieldPotmeter potmeter1(PIN_POT_RED, -175, 300);
 iotShieldPotmeter potmeter2(PIN_POT_WHITE, -50, 100);
+iotShieldCO2Sensor co2Sensor;
 iotShieldButton redButton(PIN_SWITCH_RED);
 iotShieldButton blackButton(PIN_SWITCH_BLACK);
 iotShieldLED leftRedLED(PIN_LED_1_RED);
@@ -52,7 +54,7 @@ bool blinkState = false;
 unsigned long lastTick = 0;
 #define TICK_INTERVAL 100UL
 
-float computeScore(float temp, float humidity) {
+float computeScore(float temp, float humidity, float co2) {
   // shifts the temperature, anything below will be counted as 'normal'. (anything below 30 degrees)
   // divide by the range from the shift to the highest (100 - 30 = 70)
   float tScore = constrain((temp - TEMPERATURE_SHIFT) / TEMPERATURE_DIV_RANGE, 0, 1.0) * 100; 
@@ -61,7 +63,9 @@ float computeScore(float temp, float humidity) {
   // anyhting below 50 concerning
   float hScore = constrain((HUMIDITY_SHIFT - humidity) / HUMIDITY_DIV_RANGE, 0, 1.0) * 100;
 
-  return (tScore * 0.6) + (hScore * 0.4);
+  float cScore = constrain((co2 - 400.0) / 600.0, 0, 1.0) * 100;
+
+  return (tScore * 0.4) + (hScore * 0.3) + (cScore * 0.3);
 }
 
 unsigned long getIntervalTx(alarmState state) {
@@ -136,7 +140,7 @@ void updateLEDs() {
   }
 }
 
-void sendPayload(float temperature, float humidity, float score) {
+void sendPayload(float temperature, float humidity, float score, float co2) {
   rightGreenLED.setState(LED_ON);
 
   lpp.reset();
@@ -145,6 +149,7 @@ void sendPayload(float temperature, float humidity, float score) {
   lpp.addAnalogInput(3, score);
   lpp.addPresence(4, alarmActive ? 1 : 0);
   lpp.addDigitalInput(5, (uint8_t)currentState);
+  lpp.addAnalogInput(6, co2);
 
   ttn.sendBytes(lpp.getBuffer(), lpp.getSize());
 
@@ -198,10 +203,12 @@ void loop()
     // Read sensors
     float temperature = potmeter1.getValue();
     float humidity    = potmeter2.getValue();
-    float score       = computeScore(temperature, humidity);
+    float co2          = co2Sensor.getCO2ppm();
+    float score       = computeScore(temperature, humidity, co2);
 
     debugSerial.println("Temp: "     + String(temperature));
     debugSerial.println("Humidity: " + String(humidity));
+    debugSerial.println("CO2: "      + String(co2));
     debugSerial.println("Score: " + String(score));
 
     updateState(score);
@@ -210,7 +217,7 @@ void loop()
 
     // Periodic send
     if (millis() - lastTx >= getIntervalTx(currentState)) {
-      sendPayload(temperature, humidity, score);
+      sendPayload(temperature, humidity, score, co2);
       lastTx = millis();
     }
 
