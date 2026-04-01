@@ -38,7 +38,7 @@ float iotShieldPotmeter::getValue()
   return static_cast<float>(mappedValue);
 }
 
-// Functions for class: iotShieldTempsensor
+/*/ Functions for class: iotShieldTempsensor
 iotShieldTempSensor::iotShieldTempSensor(uint8_t hardwarePin):
   _temperature(0.0),
   _oneWireInterface(hardwarePin),
@@ -56,6 +56,7 @@ float iotShieldTempSensor::getTemperatureCelsius()
   _temperature = _sensors.getTempCByIndex(0);  // Read the temperature from the first sensor
   return _temperature;
 }
+*/
 
 // Functions for class: iotShieldCO2Sensor
 iotShieldCO2Sensor::iotShieldCO2Sensor():

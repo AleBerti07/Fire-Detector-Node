@@ -22,8 +22,8 @@
 #define _SENSING_MODULE_H_
 
 #include <Arduino.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
+//#include <OneWire.h>
+//#include <DallasTemperature.h>
 
 // defines for potentiometers.
 #define PIN_POT_RED      A0    ///< Potmeter 1 with red knob is connected to Arduino pin A0
@@ -62,8 +62,8 @@ class iotShieldTempSensor
 {
 private:
   float   _temperature;         ///< Local value to hold temperature read from Dallas sensor
-  OneWire _oneWireInterface;    ///< Object of onewire interface
-  DallasTemperature _sensors;   ///< Object of one wire sensors on one wire bus
+  //OneWire _oneWireInterface;    ///< Object of onewire interface
+  //DallasTemperature _sensors;   ///< Object of one wire sensors on one wire bus
 
 public:
   /// \pre requires a digital input pin to which the sensor is connected
