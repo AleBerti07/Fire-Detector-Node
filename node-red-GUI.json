@@ -1,0 +1,73 @@
+[
+    {
+        "id": "adc4429e4fd83f3f",
+        "type": "ui_chart",
+        "z": "bf37bc87d41e6a75",
+        "name": "",
+        "group": "68ba80229c7c187c",
+        "order": 0,
+        "width": "0",
+        "height": "0",
+        "label": "Temperature:",
+        "chartType": "line",
+        "legend": "false",
+        "xformat": "HH:mm:ss",
+        "interpolate": "linear",
+        "nodata": "",
+        "dot": false,
+        "ymin": "0",
+        "ymax": "300",
+        "removeOlder": 1,
+        "removeOlderPoints": "",
+        "removeOlderUnit": "60",
+        "cutout": 0,
+        "useOneColor": false,
+        "useUTC": false,
+        "colors": [
+            "#1f77b4",
+            "#aec7e8",
+            "#ff7f0e",
+            "#2ca02c",
+            "#98df8a",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "outputs": 1,
+        "useDifferentColor": false,
+        "className": "",
+        "x": 710,
+        "y": 200,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "68ba80229c7c187c",
+        "type": "ui_group",
+        "name": "Live data",
+        "tab": "1042c2b7721e0ce9",
+        "order": 1,
+        "disp": true,
+        "width": "8",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "1042c2b7721e0ce9",
+        "type": "ui_tab",
+        "name": "Fire monitor",
+        "icon": "dashboard",
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "f76ef9165b3077bb",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-dashboard": "3.6.6"
+        }
+    }
+]
