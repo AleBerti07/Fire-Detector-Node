@@ -59,17 +59,26 @@ float iotShieldTempSensor::getTemperatureCelsius()
 */
 
 // Functions for class: iotShieldCO2Sensor
+// Functions for class: iotShieldCO2Sensor
 iotShieldCO2Sensor::iotShieldCO2Sensor():
-  _startTime(millis())
+  _co2(420.0f)
 {
 }
 
 iotShieldCO2Sensor::~iotShieldCO2Sensor(){};
 
-float iotShieldCO2Sensor::getCO2ppm()
+float iotShieldCO2Sensor::getCO2ppm(float temperature, float dTdt)
 {
+  float fireInfluence =
+      max(0.0f, temperature - 30.0f) * 1.5f
+    + max(0.0f, dTdt) * 20.0f;
 
-  unsigned long elapsed = millis() - _startTime;
-  float co2 = 400.0 + (elapsed / 10000.0) * 100.0;
-  return constrain(co2, 400.0, 2000.0);
+  float excess = max(0.0f, _co2 - 420.0f);
+  float decay  = 1.5f + (excess * 0.05f);  
+
+  _co2 += fireInfluence;
+  _co2 -= decay;
+  _co2 += random(-3, 4);
+
+  return constrain(_co2, 400.0f, 2500.0f);
 }

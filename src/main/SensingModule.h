@@ -81,14 +81,14 @@ public:
 class iotShieldCO2Sensor
 {
 private:
-  unsigned long _startTime;
+  float _co2;   // persistent state between calls — replaces _startTime
 
 public:
   iotShieldCO2Sensor();
 
   ~iotShieldCO2Sensor();
 
-  float getCO2ppm();
+  float getCO2ppm(float temperature, float dTdt);  // <-- updated signature
 };
 
 #endif // _SENSING_MODULE_H_

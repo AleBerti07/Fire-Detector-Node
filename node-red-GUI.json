@@ -1,73 +1,95 @@
 [
-    {
-        "id": "adc4429e4fd83f3f",
-        "type": "ui_chart",
-        "z": "bf37bc87d41e6a75",
-        "name": "",
-        "group": "68ba80229c7c187c",
-        "order": 0,
-        "width": "0",
-        "height": "0",
-        "label": "Temperature:",
-        "chartType": "line",
-        "legend": "false",
-        "xformat": "HH:mm:ss",
-        "interpolate": "linear",
-        "nodata": "",
-        "dot": false,
-        "ymin": "0",
-        "ymax": "300",
-        "removeOlder": 1,
-        "removeOlderPoints": "",
-        "removeOlderUnit": "60",
-        "cutout": 0,
-        "useOneColor": false,
-        "useUTC": false,
-        "colors": [
-            "#1f77b4",
-            "#aec7e8",
-            "#ff7f0e",
-            "#2ca02c",
-            "#98df8a",
-            "#d62728",
-            "#ff9896",
-            "#9467bd",
-            "#c5b0d5"
-        ],
-        "outputs": 1,
-        "useDifferentColor": false,
-        "className": "",
-        "x": 710,
-        "y": 200,
-        "wires": [
-            []
-        ]
-    },
-    {
-        "id": "68ba80229c7c187c",
-        "type": "ui_group",
-        "name": "Live data",
-        "tab": "1042c2b7721e0ce9",
-        "order": 1,
-        "disp": true,
-        "width": "8",
-        "collapse": false,
-        "className": ""
-    },
-    {
-        "id": "1042c2b7721e0ce9",
-        "type": "ui_tab",
-        "name": "Fire monitor",
-        "icon": "dashboard",
-        "disabled": false,
-        "hidden": false
-    },
-    {
-        "id": "f76ef9165b3077bb",
-        "type": "global-config",
-        "env": [],
-        "modules": {
-            "node-red-dashboard": "3.6.6"
-        }
-    }
+    { "id":"flow_main","type":"tab","label":"Fire Alarm","disabled":false,"info":"" },
+
+    { "id":"ui_base","type":"ui-base","name":"Fire Alarm","path":"/dashboard",
+      "includeClientData":true,"acceptsClientConfig":["ui-notification","ui-control"],
+      "showPathInSidebar":false,"navigationStyle":"icon","titleBarStyle":"fixed" },
+
+    { "id":"ui_theme","type":"ui-theme","name":"Light",
+      "colors":{ "surface":"#ffffff","primary":"#3b82f6","bgPage":"#f1f5f9","groupBg":"#ffffff","groupOutline":"#e2e8f0" },
+      "sizes":{ "density":"default","pagePadding":"12px","groupGap":"10px","groupBorderRadius":"10px","widgetGap":"8px" } },
+
+    { "id":"tab_fire","type":"ui-page","name":"Fire Alarm","ui":"ui_base","path":"/",
+      "icon":"mdi-fire","layout":"grid","theme":"ui_theme","order":1,"disp":true },
+
+    { "id":"grp_map",     "type":"ui-group","name":"","page":"tab_fire","width":"12","height":"1","order":1,"disp":true,"showTitle":false },
+    { "id":"grp_charts",  "type":"ui-group","name":"","page":"tab_fire","width":"12","height":"1","order":2,"disp":true,"showTitle":false },
+    { "id":"grp_weather", "type":"ui-group","name":"","page":"tab_fire","width":"12","height":"1","order":3,"disp":true,"showTitle":false },
+
+    { "id":"n_mqtt_broker","type":"mqtt-broker","name":"TTN MQTT",
+      "broker":"eu1.cloud.thethings.network","port":"8883","tls":"n_tls",
+      "clientid":"","autoConnect":true,"usetls":true,"protocolVersion":"4","keepalive":"60","cleansession":true,
+      "credentials":{ "user":"iotlab-s6@ttn","password":"NNSXS.AK3VGD7M75R3STBLJTNXQWCOT5SPM2P4W4I47CQ.J7BW6TYXTZOZLKY6QRXUWWLQLI26PAM4XD5NUQ62SMORZPYMLUWA" },
+      "birthTopic":"","birthQos":"0","birthPayload":"","closeTopic":"","closeQos":"0","closePayload":"","willTopic":"","willQos":"0","willPayload":"" },
+
+    { "id":"n_tls","type":"tls-config","name":"TTN TLS",
+      "cert":"","key":"","ca":"","certname":"","keyname":"","caname":"","servername":"","verifyservercert":true },
+
+    { "id":"n_mqtt_in","type":"mqtt in","z":"flow_main","name":"TTN uplink",
+      "topic":"v3/+/devices/+/up","qos":"0","datatype":"json","broker":"n_mqtt_broker",
+      "x":100,"y":160,"wires":[["n_decode"]] },
+
+    { "id":"n_decode","type":"function","z":"flow_main","name":"Decode payload",
+      "func":"const port=msg.payload.uplink_message.f_port;\nconst deviceId=msg.payload.end_device_ids.device_id;\nconst bytes=Buffer.from(msg.payload.uplink_message.frm_payload,'base64');\nfunction clamp(v,lo,hi){return Math.min(Math.max(v,lo),hi);}\nfunction i16(hi,lo){const r=(hi<<8)|lo;return r>32767?r-65536:r;}\n\nif(port===0){\n  function i32(b,o){const v=(b[o]<<24)|(b[o+1]<<16)|(b[o+2]<<8)|b[o+3];return v>2147483647?v-4294967296:v;}\n  const nodeId=bytes[0],lat=i32(bytes,1)/10000.0,lon=i32(bytes,5)/10000.0;\n  const reg=global.get('nodeRegistry')||{};\n  reg[deviceId]={nodeId,lat,lon,deviceId};\n  global.set('nodeRegistry',reg);\n  node.warn('Announce: '+deviceId+' id='+nodeId+' lat='+lat+' lon='+lon);\n  return null;\n}\n\nconst version=(bytes[0]>>4)&0x0F,stateId=bytes[0]&0x0F;\nif(version!==1){node.warn('Unknown version '+version);return;}\nconst STATE=['safe','watch','warning','alarm'];\nconst state=STATE[stateId]||'unknown';\nconst now=new Date().toLocaleTimeString();\nconst ni=(global.get('nodeRegistry')||{})[deviceId]||{nodeId:1,lat:51.9849,lon:5.9539};\nfunction i16s(hi,lo){const r=(hi<<8)|lo;return r>32767?r-65536:r;}\n\nconst base={label:state.toUpperCase(),state,port,version,timestamp:now,deviceId,\n  nodeId:ni.nodeId,lat:ni.lat,lon:ni.lon,\n  score:null,temp:null,co2:null,hum:null,dtdt:null,delta:null,trend:null,trigger:null};\n\nif(port===1) return [{payload:base},null,null,null,null];\n\nif(port===2){\n  const score=bytes[1],temp=clamp(i16(bytes[2],bytes[3])/10.0,-20,120),\n        co2=clamp((bytes[4]<<8)|bytes[5],300,5000),\n        delta=bytes[6]>127?bytes[6]-256:bytes[6],\n        trend=delta>10?'fast rise':delta>3?'slow rise':delta<-3?'falling':'stable';\n  const d={...base,score,temp,co2,delta,trend};\n  return [{payload:d},null,{payload:temp},{payload:co2},null];\n}\nif(port===3){\n  const score=bytes[1],temp=clamp(i16(bytes[2],bytes[3])/10.0,-20,120),\n        hum=clamp(bytes[4],0,100),co2=clamp((bytes[5]<<8)|bytes[6],300,5000),\n        dtdt=clamp(i16(bytes[7],bytes[8])/100.0,-15,15);\n  const d={...base,score,temp,co2,hum,dtdt};\n  return [{payload:d},{payload:dtdt},{payload:temp},{payload:co2},{payload:hum}];\n}\nif(port===4){\n  const score=bytes[1],temp=clamp(i16(bytes[2],bytes[3])/10.0,-20,120),\n        hum=clamp(bytes[4],0,100),co2=clamp((bytes[5]<<8)|bytes[6],300,5000),\n        dtdt=clamp(i16(bytes[7],bytes[8])/100.0,-15,15),t=bytes[9];\n  const reasons=[];\n  if(t&0x01)reasons.push('Score');if(t&0x02)reasons.push('dT/dt>10');if(t&0x04)reasons.push('Button');\n  const d={...base,score,temp,co2,hum,dtdt,trigger:reasons.join('+')||'Unknown',alarmActive:bytes[10]===0x01};\n  return [{payload:d},{payload:dtdt},{payload:temp},{payload:co2},{payload:hum}];\n}",
+      "outputs":5,"noerr":0,"initialize":"","finalize":"",
+      "x":300,"y":160,
+      "wires":[["n_ui_map"],["n_ui_dtdt"],["n_ui_temp"],["n_ui_co2"],["n_ui_hum"]] },
+
+    { "id":"n_ui_map","type":"ui-template","z":"flow_main","group":"grp_map",
+      "name":"Map + status","order":1,"width":"12","height":"7",
+      "templateScope":"local",
+      "format":"<template>\n<div style=\"position:relative;height:100%;border-radius:10px;overflow:hidden;\">\n\n  <!-- Map container -->\n  <div ref=\"mapEl\" style=\"position:absolute;inset:0;\"></div>\n\n  <!-- Status overlay card (top-left) -->\n  <div v-if=\"msg && msg.payload && msg.payload.state && msg.payload.state !== 'safe'\"\n    :style=\"{\n      position:'absolute',top:'12px',left:'12px',zIndex:1000,\n      background:'#fff',borderRadius:'10px',\n      boxShadow:'0 4px 20px rgba(0,0,0,0.13)',\n      borderLeft:'4px solid ' + stateColor,\n      padding:'12px 16px',minWidth:'200px',maxWidth:'240px',\n      fontFamily:'system-ui,sans-serif'\n    }\">\n\n    <!-- State + score -->\n    <div style=\"display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;\">\n      <div :style=\"{ background:stateBg, color:stateColor, padding:'3px 10px', borderRadius:'20px', fontSize:'0.72em', fontWeight:800, letterSpacing:'1.5px' }\">\n        {{ msg.payload.label }}\n      </div>\n      <div v-if=\"msg.payload.score !== null\" :style=\"{ color:stateColor, fontSize:'1.8em', fontWeight:900, lineHeight:1 }\">\n        {{ msg.payload.score }}\n      </div>\n    </div>\n\n    <!-- Score bar -->\n    <div v-if=\"msg.payload.score !== null\" style=\"height:4px;background:#f1f5f9;border-radius:2px;margin-bottom:12px;overflow:hidden;\">\n      <div :style=\"{ height:'100%', borderRadius:'2px', background:stateColor, width:Math.min(msg.payload.score,100)+'%', transition:'width 0.5s ease' }\"></div>\n    </div>\n\n    <!-- Sensors -->\n    <div style=\"display:grid;grid-template-columns:1fr 1fr;gap:8px;\">\n      <div style=\"background:#f8fafc;border-radius:6px;padding:7px 10px;\">\n        <div style=\"font-size:0.58em;color:#94a3b8;letter-spacing:0.5px;margin-bottom:2px;\">TEMP</div>\n        <div style=\"font-size:1.15em;font-weight:700;color:#ef4444;line-height:1;\">{{ msg.payload.temp !== null ? msg.payload.temp.toFixed(1) : '—' }}<span style=\"font-size:0.55em;font-weight:400;color:#94a3b8;\"> °C</span></div>\n      </div>\n      <div style=\"background:#f8fafc;border-radius:6px;padding:7px 10px;\">\n        <div style=\"font-size:0.58em;color:#94a3b8;letter-spacing:0.5px;margin-bottom:2px;\">CO₂</div>\n        <div style=\"font-size:1.15em;font-weight:700;color:#06b6d4;line-height:1;\">{{ msg.payload.co2 ?? '—' }}<span style=\"font-size:0.55em;font-weight:400;color:#94a3b8;\"> ppm</span></div>\n      </div>\n      <div style=\"background:#f8fafc;border-radius:6px;padding:7px 10px;\">\n        <div style=\"font-size:0.58em;color:#94a3b8;letter-spacing:0.5px;margin-bottom:2px;\">HUMIDITY</div>\n        <div style=\"font-size:1.15em;font-weight:700;color:#3b82f6;line-height:1;\">{{ msg.payload.hum ?? '—' }}<span style=\"font-size:0.55em;font-weight:400;color:#94a3b8;\"> %</span></div>\n      </div>\n      <div style=\"background:#f8fafc;border-radius:6px;padding:7px 10px;\">\n        <div style=\"font-size:0.58em;color:#94a3b8;letter-spacing:0.5px;margin-bottom:2px;\">dT/dt</div>\n        <div style=\"font-size:1.15em;font-weight:700;color:#f97316;line-height:1;\">{{ msg.payload.dtdt !== null ? msg.payload.dtdt.toFixed(1) : (msg.payload.delta !== null ? (msg.payload.delta>0?'+':'')+msg.payload.delta : '—') }}<span style=\"font-size:0.55em;font-weight:400;color:#94a3b8;\"> °C/s</span></div>\n      </div>\n    </div>\n\n    <!-- Footer -->\n    <div style=\"margin-top:9px;padding-top:8px;border-top:1px solid #f1f5f9;font-size:0.68em;color:#94a3b8;display:flex;justify-content:space-between;\">\n      <span>Node <b style=\"color:#1e293b;\">{{ msg.payload.nodeId }}</b></span>\n      <span>{{ msg.payload.timestamp }}</span>\n    </div>\n  </div>\n\n  <!-- Alarm banner (bottom, only on alarm) -->\n  <div v-if=\"msg && msg.payload && msg.payload.trigger\"\n    style=\"position:absolute;bottom:0;left:0;right:0;zIndex:1000;\n           background:#dc2626;color:white;padding:10px 16px;\n           font-family:system-ui;font-weight:700;font-size:0.85em;\n           display:flex;align-items:center;gap:10px;letter-spacing:0.5px;\">\n    <span style=\"font-size:1.3em;\">🔥</span>\n    FIRE ALARM &nbsp;·&nbsp; {{ msg.payload.trigger }}\n  </div>\n\n</div>\n</template>\n<script>\nexport default {\n  data() { return { map:null, marker:null, zoomed:false }; },\n  computed: {\n    stateColor() {\n      const c={safe:'#16a34a',watch:'#ca8a04',warning:'#ea580c',alarm:'#dc2626'};\n      return c[(this.msg&&this.msg.payload&&this.msg.payload.state)||'safe']||'#64748b';\n    },\n    stateBg() {\n      const c={safe:'#f0fdf4',watch:'#fefce8',warning:'#fff7ed',alarm:'#fef2f2'};\n      return c[(this.msg&&this.msg.payload&&this.msg.payload.state)||'safe']||'#f8fafc';\n    }\n  },\n  mounted() { this._load().then(()=>this._init()); },\n  beforeUnmount() { if(this.map){this.map.remove();this.map=null;} },\n  watch: { msg(v){ if(v&&v.payload) this._update(v.payload); } },\n  methods: {\n    _load(){\n      if(window.L) return Promise.resolve();\n      return new Promise(res=>{\n        if(!document.getElementById('lf-css')){\n          const l=document.createElement('link');l.id='lf-css';l.rel='stylesheet';\n          l.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(l);\n        }\n        if(!document.getElementById('lf-js')){\n          const s=document.createElement('script');s.id='lf-js';\n          s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';s.onload=res;document.head.appendChild(s);\n        } else { setTimeout(res,200); }\n      });\n    },\n    _init(){\n      if(this.map||!this.$refs.mapEl) return;\n      const L=window.L;\n      this.map=L.map(this.$refs.mapEl,{zoomControl:false,attributionControl:false})\n        .setView([52.3,5.3],7);\n      L.control.zoom({position:'topright'}).addTo(this.map);\n      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',\n        {attribution:'© CartoDB © OpenStreetMap',maxZoom:19}).addTo(this.map);\n      L.control.attribution({position:'bottomright',prefix:false}).addTo(this.map);\n      if(!document.getElementById('lf-tip-css')){\n        const s=document.createElement('style');s.id='lf-tip-css';\n        s.textContent='.ntip{background:#fff!important;border:none!important;box-shadow:0 3px 14px rgba(0,0,0,0.18)!important;border-radius:8px!important;padding:8px 12px!important;font-size:12px!important;font-family:system-ui!important;color:#1e293b!important;line-height:1.7!important;}.ntip::before{display:none!important}';\n        document.head.appendChild(s);\n      }\n      if(this.msg&&this.msg.payload) this._update(this.msg.payload);\n    },\n    _update(p){\n      if(!this.map||!p.lat) return;\n      const L=window.L;\n      const clr={safe:'#16a34a',watch:'#ca8a04',warning:'#ea580c',alarm:'#dc2626'};\n      const c=clr[p.state]||'#64748b';\n      const ll=[p.lat,p.lon];\n      if(!this.marker){\n        this.marker=L.circleMarker(ll,{radius:13,color:c,fillColor:c,fillOpacity:0.2,weight:3}).addTo(this.map);\n        this.marker.bindTooltip('',{permanent:true,direction:'top',offset:[0,-14],className:'ntip'});\n        this.marker.on('click',()=>this.marker.openPopup());\n        this.map.flyTo(ll,16,{duration:1.6});\n        this.zoomed=true;\n      } else {\n        this.marker.setLatLng(ll);\n      }\n      this.marker.setStyle({color:c,fillColor:c,fillOpacity:p.state==='alarm'?0.5:0.2,weight:p.state==='alarm'?4:3});\n      this.marker.setTooltipContent(\n        '<b style=\"color:'+c+'\">Node '+p.nodeId+'</b> &nbsp;·&nbsp; '+p.label+\n        (p.score!==null?' &nbsp;·&nbsp; Score <b>'+p.score+'</b>':'')\n      );\n      const rows=[\n        p.temp!==null?'<tr><td style=\"color:#94a3b8;padding:2px 10px 2px 0\">Temp</td><td><b style=\"color:#ef4444\">'+p.temp.toFixed(1)+' °C</b></td></tr>':'',\n        p.co2!==null?'<tr><td style=\"color:#94a3b8;padding:2px 10px 2px 0\">CO₂</td><td><b style=\"color:#06b6d4\">'+p.co2+' ppm</b></td></tr>':'',\n        p.hum!==null?'<tr><td style=\"color:#94a3b8;padding:2px 10px 2px 0\">Humidity</td><td><b style=\"color:#3b82f6\">'+p.hum+' %</b></td></tr>':'',\n        p.dtdt!==null?'<tr><td style=\"color:#94a3b8;padding:2px 10px 2px 0\">dT/dt</td><td><b style=\"color:#f97316\">'+p.dtdt.toFixed(2)+' °C/s</b></td></tr>':'',\n      ].join('');\n      this.marker.bindPopup(\n        '<div style=\"font-family:system-ui;min-width:195px;\">'+\n        '<div style=\"font-weight:800;font-size:13px;color:'+c+';margin-bottom:4px;\">Node '+p.nodeId+' — '+p.label+'</div>'+\n        '<div style=\"font-size:11px;color:#94a3b8;margin-bottom:8px;\">'+p.deviceId+'</div>'+\n        '<table style=\"font-size:12px;border-collapse:collapse;width:100%;\">'+\n        '<tr><td style=\"color:#94a3b8;padding:2px 10px 2px 0\">Risk score</td><td><b>'+( p.score??'—')+'</b></td></tr>'+\n        rows+\n        '<tr><td style=\"color:#94a3b8;padding:2px 10px 2px 0\">Updated</td><td>'+p.timestamp+'</td></tr>'+\n        '</table></div>'\n      );\n    }\n  }\n}\n</script>",
+      "storeOutMessages":false,"fwdInMessages":false,"resendOnRefresh":true,
+      "x":560,"y":160,"wires":[[]] },
+
+    { "id":"n_ui_temp","type":"ui-chart","z":"flow_main","group":"grp_charts",
+      "name":"Temperature","label":"Temperature (°C)","order":1,"width":"6","height":"5",
+      "chartType":"line","category":"Temperature","categoryType":"str","xAxisType":"time","yAxisLabel":"°C",
+      "ymin":"-20","ymax":"120","action":"append","pointRadius":2,"showLegend":true,
+      "removeOlder":1,"removeOlderUnit":"3600","removeOlderPoints":"",
+      "colors":["#ef4444"],"textColor":["#ef4444"],"textColorDefault":false,
+      "wires":[],"x":560,"y":260 },
+
+    { "id":"n_ui_co2","type":"ui-chart","z":"flow_main","group":"grp_charts",
+      "name":"CO2","label":"CO₂ (ppm)","order":2,"width":"6","height":"5",
+      "chartType":"line","category":"CO2","categoryType":"str","xAxisType":"time","yAxisLabel":"ppm",
+      "ymin":"300","ymax":"5000","action":"append","pointRadius":2,"showLegend":true,
+      "removeOlder":1,"removeOlderUnit":"3600","removeOlderPoints":"",
+      "colors":["#06b6d4"],"textColor":["#06b6d4"],"textColorDefault":false,
+      "wires":[],"x":560,"y":300 },
+
+    { "id":"n_ui_hum","type":"ui-chart","z":"flow_main","group":"grp_charts",
+      "name":"Humidity","label":"Humidity (%)","order":3,"width":"6","height":"5",
+      "chartType":"line","category":"Humidity","categoryType":"str","xAxisType":"time","yAxisLabel":"%",
+      "ymin":"0","ymax":"100","action":"append","pointRadius":2,"showLegend":true,
+      "removeOlder":1,"removeOlderUnit":"3600","removeOlderPoints":"",
+      "colors":["#3b82f6"],"textColor":["#3b82f6"],"textColorDefault":false,
+      "wires":[],"x":560,"y":340 },
+
+    { "id":"n_ui_dtdt","type":"ui-chart","z":"flow_main","group":"grp_charts",
+      "name":"dT/dt","label":"dT/dt (°C/s)","order":4,"width":"6","height":"5",
+      "chartType":"line","category":"dT/dt","categoryType":"str","xAxisType":"time","yAxisLabel":"°C/s",
+      "ymin":"-15","ymax":"15","action":"append","pointRadius":2,"showLegend":true,
+      "removeOlder":1,"removeOlderUnit":"3600","removeOlderPoints":"",
+      "colors":["#f97316"],"textColor":["#f97316"],"textColorDefault":false,
+      "wires":[],"x":560,"y":380 },
+
+    { "id":"n_weather_tick","type":"inject","z":"flow_main","name":"Every 10 min",
+      "repeat":"600","once":true,"onceDelay":"3","payload":"","payloadType":"date",
+      "x":100,"y":480,"wires":[["n_weather_req"]] },
+
+    { "id":"n_weather_req","type":"http request","z":"flow_main","name":"OpenWeatherMap",
+      "method":"GET","ret":"obj",
+      "url":"https://api.openweathermap.org/data/2.5/weather?lat=51.9849&lon=5.9539&units=metric&appid=YOUR_API_KEY_HERE",
+      "x":300,"y":480,"wires":[["n_weather_parse"]] },
+
+    { "id":"n_weather_parse","type":"function","z":"flow_main","name":"FWI",
+      "func":"const d=msg.payload;\nif(!d||!d.main){node.warn('Weather error');return;}\nconst temp=d.main.temp,hum=d.main.humidity,wind=Math.round((d.wind.speed||0)*3.6);\nconst fwi=Math.round(Math.min(Math.max((temp-20)/20,0),1)*33+Math.min(Math.max((60-hum)/60,0),1)*33+Math.min(wind/60,1)*34);\nconst risk=fwi>=70?'EXTREME':fwi>=50?'HIGH':fwi>=30?'MODERATE':'LOW';\nconst key={EXTREME:'alarm',HIGH:'warning',MODERATE:'watch',LOW:'safe'}[risk];\nmsg.payload={temp,hum,wind,cond:d.weather[0].description,fwi,risk,key};\nreturn msg;",
+      "outputs":1,"x":480,"y":480,"wires":[["n_ui_weather"]] },
+
+    { "id":"n_ui_weather","type":"ui-template","z":"flow_main","group":"grp_weather",
+      "name":"Weather","order":1,"width":"12","height":"2","templateScope":"local",
+      "format":"<template>\n<div :style=\"{ display:'flex',alignItems:'center',gap:'16px',padding:'11px 16px',borderRadius:'8px',border:'1.5px solid '+borderClr,background:bgClr,fontFamily:'system-ui' }\">\n  <div style=\"display:flex;flex-direction:column;align-items:center;min-width:100px;gap:3px;\">\n    <div style=\"font-size:0.62em;letter-spacing:1px;color:#94a3b8;font-weight:600;\">FIRE WEATHER</div>\n    <div :style=\"{ background:badgeClr, color:'white', padding:'3px 12px', borderRadius:'20px', fontWeight:800, fontSize:'0.82em', letterSpacing:'1px' }\">{{ msg.payload.risk }}</div>\n    <div :style=\"{ color:badgeClr, fontWeight:800, fontSize:'1.1em' }\">{{ msg.payload.fwi }}/100</div>\n  </div>\n  <div style=\"width:1px;background:#e2e8f0;height:38px;\"></div>\n  <div style=\"display:flex;gap:22px;flex:1;flex-wrap:wrap;align-items:center;\">\n    <div style=\"display:flex;flex-direction:column;align-items:center;\">\n      <span style=\"font-size:1em;font-weight:700;color:#ef4444;\">{{ msg.payload.temp }}°C</span>\n      <span style=\"font-size:0.6em;letter-spacing:1px;color:#94a3b8;\">AMBIENT</span>\n    </div>\n    <div style=\"display:flex;flex-direction:column;align-items:center;\">\n      <span style=\"font-size:1em;font-weight:700;color:#3b82f6;\">{{ msg.payload.hum }}%</span>\n      <span style=\"font-size:0.6em;letter-spacing:1px;color:#94a3b8;\">HUMIDITY</span>\n    </div>\n    <div style=\"display:flex;flex-direction:column;align-items:center;\">\n      <span style=\"font-size:1em;font-weight:700;color:#06b6d4;\">{{ msg.payload.wind }} km/h</span>\n      <span style=\"font-size:0.6em;letter-spacing:1px;color:#94a3b8;\">WIND</span>\n    </div>\n    <div style=\"display:flex;flex-direction:column;align-items:center;\">\n      <span style=\"font-size:0.9em;font-weight:500;color:#475569;\">{{ msg.payload.cond }}</span>\n      <span style=\"font-size:0.6em;letter-spacing:1px;color:#94a3b8;\">CONDITIONS</span>\n    </div>\n  </div>\n  <div style=\"font-size:0.62em;color:#cbd5e1;margin-left:auto;\">OpenWeatherMap</div>\n</div>\n</template>\n<script>\nexport default {\n  computed: {\n    badgeClr(){ const c={safe:'#16a34a',watch:'#ca8a04',warning:'#ea580c',alarm:'#dc2626'}; return c[this.msg&&this.msg.payload&&this.msg.payload.key]||'#64748b'; },\n    borderClr(){ const c={safe:'#86efac',watch:'#fde047',warning:'#fdba74',alarm:'#fca5a5'}; return c[this.msg&&this.msg.payload&&this.msg.payload.key]||'#e2e8f0'; },\n    bgClr(){ const c={safe:'#f0fdf4',watch:'#fefce8',warning:'#fff7ed',alarm:'#fef2f2'}; return c[this.msg&&this.msg.payload&&this.msg.payload.key]||'#ffffff'; }\n  }\n}\n</script>",
+      "storeOutMessages":false,"fwdInMessages":false,"resendOnRefresh":true,
+      "x":680,"y":480,"wires":[[]] }
 ]
